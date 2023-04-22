@@ -40,6 +40,7 @@ class ObjectDetectionMixin extends SettingsMixinDeviceBase<VideoCamera & Camera 
   motionMixinListener: EventListenerRegister;
   detections = new Map<string, MediaObject>();
   cameraDevice: ScryptedDevice & Camera & VideoCamera & MotionSensor & ObjectDetector;
+  pipelineTimeoutHandle: NodeJS.Timeout | null = null;
   storageSettings = new StorageSettings(this, {
     newPipeline: {
       title: 'Video Pipeline',
@@ -219,8 +220,10 @@ class ObjectDetectionMixin extends SettingsMixinDeviceBase<VideoCamera & Camera 
           }
           return;
         }
-
-        this.startPipelineAnalysis();
+        if (!this.detectorRunning) {
+          this.startPipelineAnalysis();
+        }
+        this.resetPipelineTimeout();
       });
 
       return;
@@ -239,6 +242,7 @@ class ObjectDetectionMixin extends SettingsMixinDeviceBase<VideoCamera & Camera 
           if (!this.detectorRunning)
             this.console.log('built in motion sensor started motion, starting video detection.');
           this.startPipelineAnalysis();
+          this.resetPipelineTimeout();
           return;
         }
 
@@ -251,6 +255,16 @@ class ObjectDetectionMixin extends SettingsMixinDeviceBase<VideoCamera & Camera 
           this.motionDetected = false;
       });
     }
+  }
+  
+  resetPipelineTimeout() {
+  if (this.pipelineTimeoutHandle !== null) {
+    clearTimeout(this.pipelineTimeoutHandle);
+  }
+  this.pipelineTimeoutHandle = setTimeout(() => {
+    this.endObjectDetection();
+    this.pipelineTimeoutHandle = null;
+  }, this.detectionTimeout * 1000);
   }
 
   startPipelineAnalysis() {
